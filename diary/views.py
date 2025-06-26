@@ -272,16 +272,26 @@ def update_entry(request):
         except DiaryEntry.DoesNotExist:
             return JsonResponse({'success': False, 'error': 'Entry not found'})
         # Return all fields as dict, ForeignKey fields as id/name
-        data = {f.name: getattr(entry, f.name) for f in entry._meta.fields}
+        data = {}
+        for f in entry._meta.fields:
+            value = getattr(entry, f.name)
+            if hasattr(value, 'strftime'):  # datetime 객체
+                data[f.name] = value.strftime('%Y-%m-%d') if value else None
+            elif hasattr(value, 'id'):  # ForeignKey 객체
+                data[f.name] = value.id if value else None
+            else:
+                data[f.name] = value
         # ForeignKey fields 추가 정보
         if entry.category:
             data['category_name'] = entry.category.name
             data['category_id'] = entry.category.id
+            data['category_color'] = entry.category.color if hasattr(entry.category, 'color') else None
         if entry.region:
             data['region_name'] = entry.region.name
             data['region_id'] = entry.region.id
         if entry.status:
             data['status_name'] = entry.status.name
             data['status_id'] = entry.status.id
+            data['status_color'] = entry.status.color if hasattr(entry.status, 'color') else None
         return JsonResponse({'success': True, 'entry': data})
     return JsonResponse({'success': False, 'error': 'Invalid request'})

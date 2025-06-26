@@ -19,7 +19,7 @@
         input, select { width: 100%; height: 100%; box-sizing: border-box; padding: 8px; border: none; background: transparent; font-size: inherit; font-family: inherit; line-height: inherit; display: block; }
         .add-btn { background: #007bff; color: #fff; border: none; padding: 7px 15px; border-radius: 5px; cursor: pointer; }
         .add-btn:hover { background: #0056b3; }
-        .dropdown-edit { position: absolute; background: #fff; border: 1px solid #ccc; z-index: 2000; min-width: 180px; box-shadow: 0 2px 8px #ddd; padding: 10px; border-radius: 6px; }
+        .dropdown-edit { position: absolute; background: #fff; border: 1px solid #ccc; z-index: 4000; min-width: 180px; box-shadow: 0 2px 8px #ddd; padding: 10px; border-radius: 6px; }
         .dropdown-edit input[type=text] { width: 70%; margin-bottom: 5px; }
         .dropdown-edit ul { list-style: none; padding: 0; margin: 0; max-height: 180px; overflow-y: auto; }
         .dropdown-edit li { display: flex; align-items: center; justify-content: space-between; padding: 2px 0; }
@@ -301,11 +301,16 @@ function openDropdown(td, type, id, currentId, currentSubregion) {
                     method: 'POST',
                     headers: {'Content-Type': 'application/x-www-form-urlencoded'},
                     body: 'id='+id+'&field=region&value='+encodeURIComponent(selectedRegion)
-                });
-                fetch('/update/', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                    body: 'id='+id+'&field=subregion&value='+encodeURIComponent(subTd.innerText)
+                }).then(() => {
+                    fetch('/update/?id='+id)
+                      .then(r=>r.json())
+                      .then(function(data){
+                          if(data.success && data.entry) {
+                              updateTableRow(data.entry);
+                              refreshKanban();
+                              if (typeof window._modalAfterUpdateAll === 'function') { window._modalAfterUpdateAll(id); window._modalAfterUpdateAll = null; }
+                          }
+                      });
                 });
             };
         });
@@ -351,6 +356,16 @@ function openDropdown(td, type, id, currentId, currentSubregion) {
                     method: 'POST',
                     headers: {'Content-Type': 'application/x-www-form-urlencoded'},
                     body: 'id='+id+'&field=subregion&value='+encodeURIComponent(selectedSubregion)
+                }).then(() => {
+                    fetch('/update/?id='+id)
+                      .then(r=>r.json())
+                      .then(function(data){
+                          if(data.success && data.entry) {
+                              updateTableRow(data.entry);
+                              refreshKanban();
+                              if (typeof window._modalAfterUpdateAll === 'function') { window._modalAfterUpdateAll(id); window._modalAfterUpdateAll = null; }
+                          }
+                      });
                 });
             };
         });
@@ -383,6 +398,16 @@ function openDropdown(td, type, id, currentId, currentSubregion) {
                         method: 'POST',
                         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
                         body: 'id='+id+'&field=category&value='+encodeURIComponent(span.getAttribute('data-category'))
+                    }).then(() => {
+                        fetch('/update/?id='+id)
+                          .then(r=>r.json())
+                          .then(function(data){
+                              if(data.success && data.entry) {
+                                  updateTableRow(data.entry);
+                                  refreshKanban();
+                                  if (typeof window._modalAfterUpdateAll === 'function') { window._modalAfterUpdateAll(id); window._modalAfterUpdateAll = null; }
+                              }
+                          });
                     });
                 };
             });
@@ -457,7 +482,17 @@ function openDropdown(td, type, id, currentId, currentSubregion) {
                         method: 'POST',
                         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
                         body: 'id='+id+'&field=status&value='+encodeURIComponent(span.getAttribute('data-status'))
-                    }).then(()=>refreshKanban());
+                    }).then(() => {
+                        fetch('/update/?id='+id)
+                          .then(r=>r.json())
+                          .then(function(data){
+                              if(data.success && data.entry) {
+                                  updateTableRow(data.entry);
+                                  refreshKanban();
+                                  if (typeof window._modalAfterUpdateAll === 'function') { window._modalAfterUpdateAll(id); window._modalAfterUpdateAll = null; }
+                              }
+                          });
+                    });
                 };
             });
             // 컬러피커
@@ -523,6 +558,19 @@ function bindKanbanSortable() {
             }
         });
     });
+    // 칸반 카드 클릭 시 상세 모달
+    document.querySelectorAll('.board-card').forEach(function(card){
+        card.onclick = function(e) {
+            const entryId = card.getAttribute('data-entry-id');
+            if(entryId) {
+                fetch('/update/?id='+entryId)
+                  .then(r=>r.json())
+                  .then(function(data){
+                      if(data.success && data.entry) showDetailModal(data.entry);
+                  });
+            }
+        };
+    });
 }
 function bindTableCellEvents() {
     document.querySelectorAll('td[data-field]').forEach(function(td) {
@@ -580,12 +628,21 @@ function bindTableCellEvents() {
                                 const id = tr.getAttribute('data-id');
                                 if(!id) { alert('ID 정보가 없습니다.'); return; }
                                 fetch('/update/?id='+id)
-                                  .then(r=>r.json())
-                                  .then(function(data){
-                                      if(data.success) showDetailModal(data.entry);
-                                      else alert('상세정보 불러오기 실패: '+(data.error||''));
-                                  }).catch(function(err){
-                                      alert('상세정보 불러오기 실패: 네트워크 오류');
+                                  .then(r => r.text())
+                                  .then(function(text){
+                                      console.log('응답본문:', text);
+                                      try {
+                                          const data = JSON.parse(text);
+                                          if(data.success) showDetailModal(data.entry);
+                                          else alert('상세정보 불러오기 실패: '+(data.error||''));
+                                      } catch(e) {
+                                          alert('상세정보 불러오기 실패: JSON 파싱 오류');
+                                          console.error(e);
+                                      }
+                                  })
+                                  .catch(function(err){
+                                      alert('상세정보 불러오기 실패: 네트워크 오류\n' + err);
+                                      console.error(err);
                                   });
                             };
                         }
@@ -640,9 +697,7 @@ function bindTableCellEvents() {
                             return response.json();
                         }).then(function(data) {
                             if(!data.success) alert('수정 실패: '+data.error);
-                            if(field==='fu_date' && calendar) {
-                                calendar.refetchEvents();
-                            }
+                            if(field==='fu_date' && window.calendar) window.calendar.refetchEvents();
                             // 매출(금액) 수정 시, 영업진행 값이 있으면 칸반보드 갱신
                             if(field==='amount') {
                                 const statusTd = td.parentElement.querySelector('td[data-field="status"]');
@@ -679,10 +734,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 right: 'dayGridMonth,listMonth'
             },
             eventClick: function(info) {
-                openMemoModal(info.event.id, info.event.title, info.event.startStr);
+                fetch('/update/?id='+info.event.id)
+                  .then(r=>r.json())
+                  .then(function(data){
+                      if(data.success && data.entry) showDetailModal(data.entry);
+                  });
             }
         });
         calendar.render();
+        window.calendar = calendar;
     }
     // 테이블 행 드래그앤드롭(SortableJS) 초기화
     if(typeof Sortable !== 'undefined') {
@@ -789,15 +849,100 @@ document.addEventListener('DOMContentLoaded', function() {
             const id = tr.getAttribute('data-id');
             if(!id) { alert('ID 정보가 없습니다.'); return; }
             fetch('/update/?id='+id)
-              .then(r=>r.json())
-              .then(function(data){
-                  if(data.success) showDetailModal(data.entry);
-                  else alert('상세정보 불러오기 실패: '+(data.error||''));
-              }).catch(function(err){
-                  alert('상세정보 불러오기 실패: 네트워크 오류');
+              .then(r => r.text())
+              .then(function(text){
+                  console.log('응답본문:', text);
+                  try {
+                      const data = JSON.parse(text);
+                      if(data.success) showDetailModal(data.entry);
+                      else alert('상세정보 불러오기 실패: '+(data.error||''));
+                  } catch(e) {
+                      alert('상세정보 불러오기 실패: JSON 파싱 오류');
+                      console.error(e);
+                  }
+              })
+              .catch(function(err){
+                  alert('상세정보 불러오기 실패: 네트워크 오류\n' + err);
+                  console.error(err);
               });
         };
     });
+    // 메모 모달 관련 함수 리팩토링
+    function openMemoModal(entryId, title, date) {
+        const modal = document.getElementById('memoModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const memoInput = document.getElementById('memoInput');
+        const memoPreview = document.getElementById('memoPreview');
+        const saveBtn = document.getElementById('saveMemoBtn');
+        const closeBtn = document.getElementById('closeMemoBtn');
+        let isEdit = false;
+        let currentMemo = '';
+        // 보기 모드로 전환
+        function setViewMode(mdText) {
+            isEdit = false;
+            memoInput.style.display = 'none';
+            saveBtn.style.display = 'none';
+            memoPreview.style.display = 'block';
+            memoPreview.innerHTML = marked.parse(mdText || '');
+            // 수정 버튼 추가
+            let editBtn = document.getElementById('editMemoBtn');
+            if (!editBtn) {
+                editBtn = document.createElement('button');
+                editBtn.id = 'editMemoBtn';
+                editBtn.textContent = '수정';
+                editBtn.style.marginLeft = '8px';
+                saveBtn.parentNode.insertBefore(editBtn, closeBtn);
+            }
+            editBtn.style.display = 'inline-block';
+            editBtn.onclick = function() {
+                setEditMode(currentMemo);
+            };
+        }
+        // 수정 모드로 전환
+        function setEditMode(mdText) {
+            isEdit = true;
+            memoInput.style.display = 'block';
+            saveBtn.style.display = 'inline-block';
+            memoPreview.style.display = 'block';
+            memoInput.value = mdText || '';
+            memoPreview.innerHTML = marked.parse(mdText || '');
+            let editBtn = document.getElementById('editMemoBtn');
+            if (editBtn) editBtn.style.display = 'none';
+            memoInput.oninput = function() {
+                memoPreview.innerHTML = marked.parse(memoInput.value || '');
+            };
+        }
+        // 저장
+        saveBtn.onclick = function() {
+            const newMemo = memoInput.value;
+            fetch('/fu_memo/' + entryId + '/', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: 'memo=' + encodeURIComponent(newMemo)
+            }).then(r => r.json()).then(function(resp) {
+                if (resp.success) {
+                    currentMemo = newMemo;
+                    setViewMode(currentMemo);
+                } else {
+                    alert('저장 실패: ' + (resp.error || ''));
+                }
+            });
+        };
+        closeBtn.onclick = function() {
+            modal.style.display = 'none';
+        };
+        // 최초 데이터 불러오기
+        fetch('/fu_memo/' + entryId + '/').then(r => r.json()).then(function(resp) {
+            if (resp.success) {
+                currentMemo = resp.memo || '';
+                modalTitle.textContent = (title || 'F/U 메모') + (date ? ' (' + date + ')' : '');
+                setViewMode(currentMemo);
+                modal.style.display = 'flex';
+            } else {
+                alert('메모 불러오기 실패: ' + (resp.error || ''));
+            }
+        });
+    }
 });
 function refreshTable() {
     fetch('/').then(r=>r.text()).then(html=>{
@@ -817,6 +962,238 @@ function hexToRgba(hex, alpha) {
     const g = parseInt(hex.substring(2,4), 16);
     const b = parseInt(hex.substring(4,6), 16);
     return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// 상세보기 모달 함수 추가
+function showDetailModal(entry) {
+    // 테이블과 동일한 필드 순서
+    const fieldOrder = [
+        'name','category_name','region_name','subregion','address','manager','phone','email','ta_date','meeting_date','fu_date','status_name','possibility','amount','created_at','updated_at'
+    ];
+    const fieldLabels = {
+        name: '이름',
+        category_name: '구분',
+        region_name: '지역',
+        subregion: '상세지역',
+        address: '주소',
+        manager: '담당자',
+        phone: '연락처',
+        email: '이메일',
+        ta_date: 'TA',
+        meeting_date: '미팅',
+        fu_date: 'F/U 일정',
+        status_name: '영업진행',
+        possibility: '가능성',
+        amount: '매출',
+        created_at: '생성일',
+        updated_at: '수정일',
+    };
+    let html = '<h3>상세 정보</h3><table style="width:100%">';
+    const readonlyFields = ['created_at', 'updated_at'];
+    const dropdownFields = ['category_name','region_name','status_name','subregion'];
+    let memoHtml = '';
+    fieldOrder.forEach(function(key) {
+        if (!(key in entry)) return;
+        let value = entry[key] ?? '';
+        let inputHtml = '';
+        if (dropdownFields.includes(key)) {
+            let btnStyle = '';
+            if(key==='category_name' && entry.category_color) btnStyle = `background:${hexToRgba(entry.category_color, 0.18)};`;
+            if(key==='status_name' && entry.status_color) btnStyle = `background:${hexToRgba(entry.status_color, 0.18)};`;
+            inputHtml = `<button type="button" class="add-btn" style="width:100%;background:#f8f9fa;color:#333;border:1px solid #eee;${btnStyle}" onclick="openDetailDropdown('${entry.id}','${key}',this)">${value||'선택'}</button>`;
+        } else if (key === 'address') {
+            inputHtml = `<input type="text" value="${value}" data-field="${key}" onchange="updateEntryField('${entry.id}', '${key}', this.value)">`;
+        } else if (readonlyFields.includes(key)) {
+            inputHtml = `<input type="text" value="${value}" readonly style="background:#f8f9fa;">`;
+        } else if (key.endsWith('_date')) {
+            inputHtml = `<input type="date" value="${value}" data-field="${key}" onchange="updateEntryField('${entry.id}', '${key}', this.value)">`;
+        } else {
+            inputHtml = `<input type="text" value="${value}" data-field="${key}" onchange="updateEntryField('${entry.id}', '${key}', this.value)">`;
+        }
+        html += `<tr><th style="text-align:right;padding:4px 8px;color:#888;">${fieldLabels[key] || key}</th><td style="padding:4px 8px;">${inputHtml}</td></tr>`;
+    });
+    // 메모는 textarea + 마크다운 렌더링 결과 동시 표시
+    if ('memo' in entry) {
+        memoHtml = `<div style="margin-top:18px;"><b>메모</b><br><textarea id="modalMemoInput" data-field="memo" style="width:98%;min-height:80px;">${entry.memo ?? ''}</textarea><div id="modalMemoPreview" style="border:1px solid #eee;padding:8px 10px;background:#fafbfc;min-height:40px;margin-top:6px;"></div></div>`;
+    }
+    html += '</table>' + memoHtml;
+    document.getElementById('detailModalContent').innerHTML = html + '<button onclick="closeDetailModal()" style="margin-top:16px;">닫기</button>';
+    document.getElementById('detailModal').style.display = 'flex';
+    // 메모 입력 시 마크다운 렌더링
+    if ('memo' in entry) {
+        const memoInput = document.getElementById('modalMemoInput');
+        const memoPreview = document.getElementById('modalMemoPreview');
+        if(memoInput && memoPreview) {
+            function renderPreview() {
+                memoPreview.innerHTML = marked.parse(memoInput.value || '');
+            }
+            memoInput.addEventListener('input', renderPreview);
+            renderPreview();
+            memoInput.onchange = function() {
+                updateEntryField(entry.id, 'memo', memoInput.value);
+            };
+        }
+    }
+}
+// 상세 모달용 드롭다운 오픈 함수
+function openDetailDropdown(id, key, btn) {
+    let type = '';
+    if(key==='category_name') type = 'category';
+    else if(key==='region_name') type = 'region';
+    else if(key==='status_name') type = 'status';
+    else if(key==='subregion') type = 'subregion';
+    else if(key==='address') type = 'address';
+    // 모달 내에서 드롭다운을 띄우기 위해 임시 td 생성
+    let fakeTd = document.createElement('td');
+    fakeTd.style.position = 'fixed';
+    fakeTd.style.left = (btn.getBoundingClientRect().left + window.scrollX) + 'px';
+    fakeTd.style.top = (btn.getBoundingClientRect().top + window.scrollY + btn.offsetHeight) + 'px';
+    document.body.appendChild(fakeTd);
+    // openDropdown은 td, type, id, currentId, currentSubregion 순서
+    let currentId = btn.innerText;
+    let currentSubregion = '';
+    if(type==='subregion') {
+        // region_name을 찾아서 전달
+        const regionVal = btn.closest('table').querySelector('button[onclick*="region_name"]').innerText;
+        currentId = regionVal;
+        currentSubregion = btn.innerText;
+    }
+    openDropdown(fakeTd, type, id, currentId, currentSubregion);
+    // 드롭다운에서 값 선택 후 모달도 갱신
+    function afterUpdateAll(id) {
+        fetch('/update/?id='+id)
+        .then(r=>r.json())
+        .then(function(data){
+            if(data.success && data.entry) {
+                showDetailModal(data.entry);
+                updateTableRow(data.entry);
+                refreshKanban();
+            }
+        });
+    }
+    // 드롭다운 닫힐 때 fakeTd도 제거
+    const observer = new MutationObserver(function() {
+        if(!document.body.contains(fakeTd)) observer.disconnect();
+        if(!dropdown || !document.body.contains(dropdown)) {
+            fakeTd.remove();
+            observer.disconnect();
+        }
+    });
+    observer.observe(document.body, {childList:true, subtree:true});
+
+    // 드롭다운에서 값 선택 시 afterUpdateAll을 호출하도록 openDropdown 내부에 콜백을 전달
+    // openDropdown에서 값을 선택하는 부분에 아래와 같이 추가:
+    // if (typeof window._modalAfterUpdateAll === 'function') window._modalAfterUpdateAll(id);
+    window._modalAfterUpdateAll = afterUpdateAll;
+}
+function updateEntryField(id, field, value) {
+    fetch('/update/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'id='+encodeURIComponent(id)+'&field='+encodeURIComponent(field)+'&value='+encodeURIComponent(value)
+    })
+    .then(r=>r.json())
+    .then(function(data){
+        if(!data.success) {
+            alert('수정 실패: '+(data.error||''));
+            return;
+        }
+        // 항상 최신 entry로 모달/테이블/보드 동기화
+        return fetch('/update/?id='+id);
+    })
+    .then(r => r ? r.json() : null)
+    .then(function(data){
+        if(data && data.success && data.entry) {
+            showDetailModal(data.entry);
+            updateTableRow(data.entry);
+            refreshKanban();
+            if(field === 'fu_date' && window.calendar) window.calendar.refetchEvents();
+        }
+    })
+    .catch(function(err){
+        alert('수정 실패: 네트워크 오류');
+        console.error(err);
+    });
+}
+function closeDetailModal() {
+    document.getElementById('detailModal').style.display = 'none';
+    bindTableCellEvents(); // ...버튼 이벤트 복구
+}
+function updateTableRow(entry) {
+    const tr = document.querySelector(`#entryTbody tr[data-id='${entry.id}']`);
+    if(tr) {
+        const fieldMap = {
+            name: 'name',
+            category: 'category',
+            region: 'region',
+            subregion: 'subregion',
+            address: 'address',
+            manager: 'manager',
+            phone: 'phone',
+            email: 'email',
+            ta_date: 'ta_date',
+            meeting_date: 'meeting_date',
+            fu_date: 'fu_date',
+            status: 'status',
+            possibility: 'possibility',
+            amount: 'amount'
+        };
+        for(const key in fieldMap) {
+            const td = tr.querySelector(`td[data-field='${fieldMap[key]}']`);
+            if(!td) continue;
+            if(key==='category') {
+                td.innerText = entry.category_name || '';
+                td.setAttribute('data-value', entry.category_id || '');
+                if(entry.category_color) {
+                    td.style.background = hexToRgba(entry.category_color, 0.18);
+                } else {
+                    td.style.background = '';
+                }
+            } else if(key==='region') {
+                td.innerText = entry.region_name || '';
+                td.setAttribute('data-value', entry.region_id || '');
+                td.style.background = '';
+            } else if(key==='status') {
+                td.innerText = entry.status_name || '';
+                td.setAttribute('data-value', entry.status_id || '');
+                if(entry.status_color) {
+                    td.style.background = hexToRgba(entry.status_color, 0.18);
+                } else {
+                    td.style.background = '';
+                }
+            } else if(key==='name') {
+                td.innerHTML = `<div class="name-text">${entry.name || ''}</div><div class="more-btn-wrapper"><div class="more-btn" style="cursor:pointer;">⋯</div></div>`;
+                const newMoreBtn = td.querySelector('.more-btn');
+                if(newMoreBtn) {
+                    newMoreBtn.onclick = function(e){
+                        e.stopPropagation();
+                        const tr = td.closest('tr');
+                        const id = tr.getAttribute('data-id');
+                        if(!id) { alert('ID 정보가 없습니다.'); return; }
+                        fetch('/update/?id='+id)
+                          .then(r => r.text())
+                          .then(function(text){
+                              try {
+                                  const data = JSON.parse(text);
+                                  if(data.success) showDetailModal(data.entry);
+                                  else alert('상세정보 불러오기 실패: '+(data.error||''));
+                              } catch(e) {
+                                  alert('상세정보 불러오기 실패: JSON 파싱 오류');
+                                  console.error(e);
+                              }
+                          })
+                          .catch(function(err){
+                              alert('상세정보 불러오기 실패: 네트워크 오류\n' + err);
+                              console.error(err);
+                          });
+                    };
+                }
+            } else {
+                td.innerText = entry[key] ?? '';
+                td.style.background = '';
+            }
+        }
+    }
 }
 </script>
 </body>
