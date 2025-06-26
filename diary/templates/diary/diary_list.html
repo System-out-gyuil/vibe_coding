@@ -13,6 +13,7 @@
             border-collapse: collapse; 
             margin-top: 20px; 
         }
+
         th, td { border: 1px solid #eee; padding: 0.5em 12px; text-align: center; min-width: 80px; height: 36px; box-sizing: border-box; }
         th { background: #f1f3f6; }
         tr:nth-child(even) { background: #fafbfc; }
@@ -144,6 +145,21 @@
         }
         .edit-col-btn, .del-col-btn { display: none; margin-left: 4px; }
         th.col-active .edit-col-btn, th.col-active .del-col-btn { display: inline-block; }
+        td[data-field] { position: relative; }
+        .table-edit-input {
+            position: absolute;
+            left: 0; top: 0;
+            width: max-content;
+            min-width: 100%;
+            background: #fffbe6;
+            z-index: 10;
+            border: none;
+            font-size: inherit;
+            font-family: inherit;
+            line-height: inherit;
+            padding: 0;
+            margin: 0;
+        }
     </style>
 </head>
 <body>
@@ -441,6 +457,7 @@ function openDropdown(td, type, id, currentId, currentSubregion) {
                     const old = span.innerText;
                     const input = document.createElement('input');
                     input.type = 'text'; input.value = old;
+                    input.className = 'table-edit-input';
                     span.replaceWith(input);
                     input.focus();
                     input.onkeydown = function(ev){
@@ -506,7 +523,10 @@ function openDropdown(td, type, id, currentId, currentSubregion) {
             dropdown.querySelector('.add-btn').onclick = function(){
                 const val = dropdown.querySelector('input[type=text]').value.trim();
                 if(val) fetch('/statuses/', {method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'name='+encodeURIComponent(val)})
-                    .then(()=>openDropdown(td, 'status', id));
+                    .then(()=>{
+                        openDropdown(td, 'status', id);
+                        refreshKanban(); // 칸반보드 갱신
+                    });
             };
             // 삭제
             dropdown.querySelectorAll('button[data-del]').forEach(function(btn){
@@ -525,6 +545,7 @@ function openDropdown(td, type, id, currentId, currentSubregion) {
                     const old = span.innerText;
                     const input = document.createElement('input');
                     input.type = 'text'; input.value = old;
+                    input.className = 'table-edit-input';
                     span.replaceWith(input);
                     input.focus();
                     input.onkeydown = function(ev){
@@ -593,6 +614,8 @@ function bindTableCellEvents() {
             // 인라인 편집 셀
             td.onclick = function() {
                 if (td.querySelector('input')) return; // 이미 편집 중이면 무시
+                // 인라인 편집 시작 시 td의 width를 고정
+                td.style.width = td.offsetWidth + 'px';
                 if(type === 'name') {
                     const nameDiv = td.querySelector('.name-text');
                     if(!nameDiv) return;
@@ -601,16 +624,7 @@ function bindTableCellEvents() {
                     const input = document.createElement('input');
                     input.type = 'text';
                     input.value = oldValue;
-                    input.style.width = '100%';
-                    input.style.height = '100%';
-                    input.style.boxSizing = 'border-box';
-                    input.style.border = 'none';
-                    input.style.background = 'transparent';
-                    input.style.padding = '0';
-                    input.style.margin = '0';
-                    input.style.fontSize = 'inherit';
-                    input.style.fontFamily = 'inherit';
-                    input.style.lineHeight = 'inherit';
+                    input.className = 'table-edit-input';
                     nameDiv.innerHTML = '';
                     nameDiv.appendChild(input);
                     // ...버튼 숨김
@@ -646,6 +660,8 @@ function bindTableCellEvents() {
                                   });
                             };
                         }
+                        // 편집 종료 시 td width 해제
+                        td.style.width = '';
                     }
                     input.onblur = function() {
                         const newValue = input.value;
@@ -669,16 +685,7 @@ function bindTableCellEvents() {
                     const input = document.createElement('input');
                     input.type = inputType;
                     input.value = (inputType==='date' && oldValue) ? oldValue.trim().slice(0,10) : oldValue.trim();
-                    input.style.width = '100%';
-                    input.style.height = '100%';
-                    input.style.boxSizing = 'border-box';
-                    input.style.border = 'none';
-                    input.style.background = 'transparent';
-                    input.style.padding = '0';
-                    input.style.margin = '0';
-                    input.style.fontSize = 'inherit';
-                    input.style.fontFamily = 'inherit';
-                    input.style.lineHeight = 'inherit';
+                    input.className = 'table-edit-input';
                     td.innerHTML = '';
                     td.appendChild(input);
                     input.focus();
@@ -686,9 +693,13 @@ function bindTableCellEvents() {
                         const newValue = input.value;
                         if (newValue === oldValue || (inputType==='date' && (!newValue && !oldValue))) {
                             td.innerText = oldValue;
+                            // 편집 종료 시 td width 해제
+                            td.style.width = '';
                             return;
                         }
                         td.innerText = newValue;
+                        // 편집 종료 시 td width 해제
+                        td.style.width = '';
                         fetch('/update/', {
                             method: 'POST',
                             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -709,7 +720,7 @@ function bindTableCellEvents() {
                     };
                     input.onkeydown = function(e) {
                         if (e.key === 'Enter') input.blur();
-                        if (e.key === 'Escape') { td.innerText = oldValue; }
+                        if (e.key === 'Escape') { td.innerText = oldValue; td.style.width = ''; }
                     };
                 }
             };
@@ -943,6 +954,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    // 상세 모달 외부 클릭 시 닫기
+    document.getElementById('detailModal').addEventListener('mousedown', function(e) {
+        if (e.target === this) {
+            closeDetailModal();
+        }
+    });
 });
 function refreshTable() {
     fetch('/').then(r=>r.text()).then(html=>{
@@ -1017,7 +1034,7 @@ function showDetailModal(entry) {
         memoHtml = `<div style="margin-top:18px;"><b>메모</b><br><textarea id="modalMemoInput" data-field="memo" style="width:98%;min-height:80px;">${entry.memo ?? ''}</textarea><div id="modalMemoPreview" style="border:1px solid #eee;padding:8px 10px;background:#fafbfc;min-height:40px;margin-top:6px;"></div></div>`;
     }
     html += '</table>' + memoHtml;
-    document.getElementById('detailModalContent').innerHTML = html + '<button onclick="closeDetailModal()" style="margin-top:16px;">닫기</button>';
+    document.getElementById('detailModalContent').innerHTML = html;
     document.getElementById('detailModal').style.display = 'flex';
     // 메모 입력 시 마크다운 렌더링
     if ('memo' in entry) {
