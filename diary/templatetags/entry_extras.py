@@ -10,8 +10,22 @@ def get_field(entry, field):
     return entry.extra.get(field, '')
 
 @register.filter
-def get_item(data, key):
-    return data.get(key, '')
+def get_item(entry, attr_name):
+    try:
+        from diary.models import CustomAttribute, AttributeValue, DropdownOption
+        attr = CustomAttribute.objects.get(name=attr_name, user=entry.user)
+        attr_value = AttributeValue.objects.filter(entry=entry, attribute=attr).first()
+        value = attr_value.value if attr_value else ''
+        # dropdown 타입이면 id를 값으로 변환
+        if attr.type.name == 'dropdown':
+            try:
+                option = DropdownOption.objects.get(id=value)
+                return option.value
+            except DropdownOption.DoesNotExist:
+                return value
+        return value
+    except Exception:
+        return ''
 
 @register.filter
 def to_rgba(hex_color, alpha='0.18'):
@@ -27,4 +41,24 @@ def to_rgba(hex_color, alpha='0.18'):
         b = int(hex_color[4:6], 16)
         return f'rgba({r},{g},{b},{alpha})'
     except Exception:
-        return '' 
+        return ''
+
+@register.filter
+def get_item_id(entry, attr_name):
+    try:
+        from diary.models import CustomAttribute, AttributeValue
+        attr = CustomAttribute.objects.get(name=attr_name, user=entry.user)
+        attr_value = AttributeValue.objects.filter(entry=entry, attribute=attr).first()
+        return str(attr_value.value) if attr_value else ''
+    except Exception:
+        return ''
+
+@register.filter
+def get_option_by_id(options, id):
+    try:
+        for opt in options:
+            if str(opt.id) == str(id):
+                return opt
+        return None
+    except Exception:
+        return None 

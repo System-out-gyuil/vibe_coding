@@ -504,7 +504,7 @@ function openDropdown(td, type, id, currentId, currentSubregion) {
             });
             // 추가
             dropdown.querySelector('.add-btn').onclick = function(){
-                const val = dropdown.querySelector('input').value.trim();
+                const val = dropdown.querySelector('input[type=text]').value.trim();
                 if(val) fetch('/statuses/', {method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'name='+encodeURIComponent(val)})
                     .then(()=>openDropdown(td, 'status', id));
             };
