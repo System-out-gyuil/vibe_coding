@@ -165,6 +165,9 @@
             border: none !important;
         }
     </style>
+    <script>
+        window.ATTR_FIELDS = JSON.parse('{{ attributes|escapejs }}');
+    </script>
 </head>
 <body>
 <div class="container">
@@ -175,80 +178,69 @@
     </div>
     <div id="tableView" style="overflow-x:auto; max-width:100%;">
         <table id="entryTable" style="width:auto; min-width:unset;">
-                <thead>
+            <thead>
+            <tr>
+                <th class="drag-cell"></th>
+                {% for attr in attributes %}
+                    <th>{{ attr.name }}</th>
+                {% endfor %}
+            </tr>
+            </thead>
+            <tbody id="entryTbody">
                 <tr>
-                    <th class="drag-cell"></th>
-                <th>이름</th><th>구분</th><th>지역</th><th>상세지역</th><th>주소</th><th>담당자</th><th>연락처</th><th>이메일</th><th>TA</th><th>미팅</th><th>F/U 일정</th><th>영업진행</th><th>가능성</th><th>매출</th>
-                </tr>
-                
-                </thead>
-                <tbody id="entryTbody">
-                {% for entry in entries %}
-                <tr data-id="{{ entry.id }}">
                     <td class="drag-cell"><span class="drag-handle">⋮⋮⋮</span></td>
-                <td data-field="name"><div class="name-text">{{ entry.name }}</div><div class="more-btn-wrapper"><div class="more-btn" style="cursor:pointer;">⋯</div></div></td>
-                <td data-field="category" data-value="{% if entry.category %}{{ entry.category.id }}{% endif %}" style="background:{% if entry.category.color %}{{ entry.category.color|to_rgba:'0.18' }}{% endif %};">{% if entry.category %}{{ entry.category }}{% else %}&nbsp;{% endif %}</td>
-                <td data-field="region" data-value="{% if entry.region %}{{ entry.region.id }}{% endif %}">{% if entry.region %}{{ entry.region }}{% else %}&nbsp;{% endif %}</td>
-                <td data-field="subregion">{{ entry.subregion }}</td>
-                <td data-field="address">{{ entry.address }}</td>
-                <td data-field="manager">{{ entry.manager }}</td>
-                <td data-field="phone">{{ entry.phone }}</td>
-                <td data-field="email">{{ entry.email }}</td>
-                <td data-field="ta_date">{{ entry.ta_date|date:'Y-m-d' }}</td>
-                <td data-field="meeting_date">{{ entry.meeting_date|date:'Y-m-d' }}</td>
-                <td data-field="fu_date">{{ entry.fu_date|date:'Y-m-d' }}</td>
-                <td data-field="status" data-value="{% if entry.status %}{{ entry.status.id }}{% endif %}" style="background:{% if entry.status and entry.status.color %}{{ entry.status.color|to_rgba:'0.18' }}{% endif %};">{% if entry.status %}{{ entry.status.name }}{% else %}&nbsp;{% endif %}</td>
-                <td data-field="possibility">{{ entry.possibility }}</td>
-                <td data-field="amount">{{ entry.amount }}</td>
+                    {% for attr in attributes %}
+                        {% if attr.name == '이름' %}
+                            <td data-field="{{ attr.name }}" data-type="{{ attr.attributeType.name }}"><div class="name-text">{{ values|get_item:attr.name }}</div><div class="more-btn-wrapper"><div class="more-btn" style="cursor:pointer;">⋯</div></div></td>
+                        {% else %}
+                            <td data-field="{{ attr.name }}" data-type="{{ attr.attributeType.name }}">{{ values|get_item:attr.name }}</td>
+                        {% endif %}
+                    {% endfor %}
                 </tr>
-                {% empty %}
-                <tr><td colspan="15">작성된 데이터가 없습니다.</td></tr>
-                {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        <div style="margin:10px 0 20px 0;">
-            <button id="addRowBtn" class="add-btn" style="width:180px;">+ 새로 만들기</button>
-        </div>
-        <div id="boardView">
-            <div class="board-container">
-                {% for col in board %}
-                <div class="board-col" data-status-id="{{ col.status.id }}" style="background:{% if col.status.color %}{{ col.status.color|to_rgba:'0.10' }}{% endif %};">
-                    <div class="board-col-title" style="background:{% if col.status.color %}{{ col.status.color|to_rgba:'0.18' }}{% endif %};border-left:6px solid {{ col.status.color|default:'#007bff' }};padding-left:10px;">{{ col.status.name }}</div>
-                    <div class="board-cards">
-                        {% for entry in col.entries %}
-                        <div class="board-card" data-entry-id="{{ entry.id }}">
-                            <div class="board-card-title">{{ entry.name }}</div>
-                            <div class="board-card-amount">{% if entry.amount %}₩{{ entry.amount }}{% endif %}</div>
-                        </div>
-                        {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div style="margin:10px 0 20px 0;">
+        <button id="addRowBtn" class="add-btn" style="width:180px;">+ 새로 만들기</button>
+    </div>
+    <div id="boardView">
+        <div class="board-container">
+            {% for col in board %}
+            <div class="board-col" data-status-id="{{ col.status.id }}" style="background:{% if col.status.color %}{{ col.status.color|to_rgba:'0.10' }}{% endif %};">
+                <div class="board-col-title" style="background:{% if col.status.color %}{{ col.status.color|to_rgba:'0.18' }}{% endif %};border-left:6px solid {{ col.status.color|default:'#007bff' }};padding-left:10px;">{{ col.status.name }}</div>
+                <div class="board-cards">
+                    {% for entry in col.entries %}
+                    <div class="board-card" data-entry-id="{{ entry.id }}">
+                        <div class="board-card-title">{{ entry.name }}</div>
+                        <div class="board-card-amount">{% if entry.amount %}₩{{ entry.amount }}{% endif %}</div>
                     </div>
-                    <button class="add-card-btn">+ 새로 만들기</button>
+                    {% endfor %}
                 </div>
-                {% endfor %}
+                <button class="add-card-btn">+ 새로 만들기</button>
             </div>
+            {% endfor %}
         </div>
-        <div id="calendar" style="margin-top:40px;"></div>
-        <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
-        <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
-        <!-- 모달창 -->
-        <div id="memoModal" style="display:none;position:fixed;left:0;top:0;width:100vw;height:100vh;background:rgba(0,0,0,0.4);z-index:1000;align-items:center;justify-content:center;">
-          <div style="background:#fff;padding:24px 20px 16px 20px;border-radius:8px;min-width:350px;max-width:90vw;min-height:200px;max-height:80vh;overflow:auto;position:relative;">
-            <h3 id="modalTitle">F/U 메모</h3>
-            <textarea id="memoInput" style="width:100%;height:120px;"></textarea>
-            <div style="margin:10px 0;">
-              <b>미리보기:</b>
-              <div id="memoPreview" style="border:1px solid #eee;padding:8px 10px;background:#fafbfc;min-height:40px;"></div>
-            </div>
-            <button id="saveMemoBtn" style="background:#007bff;color:#fff;border:none;padding:7px 15px;border-radius:5px;">저장</button>
-            <button id="closeMemoBtn" style="margin-left:8px;">닫기</button>
-          </div>
+    </div>
+    <div id="calendar" style="margin-top:40px;"></div>
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+    <!-- 모달창 -->
+    <div id="memoModal" style="display:none;position:fixed;left:0;top:0;width:100vw;height:100vh;background:rgba(0,0,0,0.4);z-index:1000;align-items:center;justify-content:center;">
+      <div style="background:#fff;padding:24px 20px 16px 20px;border-radius:8px;min-width:350px;max-width:90vw;min-height:200px;max-height:80vh;overflow:auto;position:relative;">
+        <h3 id="modalTitle">F/U 메모</h3>
+        <textarea id="memoInput" style="width:100%;height:120px;"></textarea>
+        <div style="margin:10px 0;">
+          <b>미리보기:</b>
+          <div id="memoPreview" style="border:1px solid #eee;padding:8px 10px;background:#fafbfc;min-height:40px;"></div>
         </div>
-        <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
-        <div id="detailModal" style="display:none;position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:3000;background:rgba(0,0,0,0.3);align-items:center;justify-content:center;">
-          <div id="detailModalContent" style="background:#fff;min-width:400px;max-width:90vw;min-height:300px;max-height:90vh;overflow:auto;border-radius:10px;padding:30px 30px 20px 30px;position:relative;"></div>
-        </div>
+        <button id="saveMemoBtn" style="background:#007bff;color:#fff;border:none;padding:7px 15px;border-radius:5px;">저장</button>
+        <button id="closeMemoBtn" style="margin-left:8px;">닫기</button>
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+    <div id="detailModal" style="display:none;position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:3000;background:rgba(0,0,0,0.3);align-items:center;justify-content:center;">
+      <div id="detailModalContent" style="background:#fff;min-width:400px;max-width:90vw;min-height:300px;max-height:90vh;overflow:auto;border-radius:10px;padding:30px 30px 20px 30px;position:relative;"></div>
     </div>
 </div>
 <script>
@@ -813,13 +805,16 @@ document.addEventListener('DOMContentLoaded', function() {
         const dragTd = document.createElement('td');
         dragTd.className = 'drag-cell';
         tr.appendChild(dragTd);
-        const fields = ['name','category','region','subregion','address','manager','phone','email','ta_date','meeting_date','fu_date','status','possibility','amount'];
+        const fields = window.ATTR_FIELDS.map(attr => attr.name);
         fields.forEach(function(field) {
             const td = document.createElement('td');
             td.setAttribute('data-field', field);
-            if(['ta_date','meeting_date','fu_date'].includes(field)) {
+            // 타입 정보도 활용 가능
+            const attrObj = window.ATTR_FIELDS.find(a => a.name === field);
+            const type = attrObj && attrObj.attributeType ? attrObj.attributeType.name : '';
+            if(['ta_date','meeting_date','fu_date'].includes(field) || type === 'datetime') {
                 td.innerHTML = '<input type="date" style="width:100%;height:100%;box-sizing:border-box;padding:8px;border:none;background:transparent;font-size:inherit;font-family:inherit;line-height:inherit;display:block;">';
-            } else if(field==='category') {
+            } else if(type === 'dropdown') {
                 td.innerText = '';
             } else if(field==='region') {
                 td.innerText = '서울';

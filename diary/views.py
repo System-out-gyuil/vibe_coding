@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from .models import DiaryEntry, Category, Region, SalesStatus
+from .models import DiaryEntry, Category, Region, SalesStatus, BaseAttribute, Attribute, AttributeValue, User, DropdownAttribute, Row
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
@@ -12,16 +12,19 @@ import random
 # 다이어리 목록 및 작성 폼
 
 def diary_list(request):
-    entries = DiaryEntry.objects.all().order_by('order', 'id')
-    statuses = SalesStatus.objects.all().order_by('id')
-    board = []
-    for status in statuses:
-        status_entries = DiaryEntry.objects.filter(status=status).order_by('order', 'id')
-        board.append({'status': status, 'entries': status_entries})
+    user = User.objects.get(id=1)
+    attributes = BaseAttribute.objects.all().order_by('id')
+    user_attributes = Attribute.objects.filter(user=user)
+    attr_map = {attr.name: attr for attr in user_attributes}
+    values = {}
+
+    for attr in user_attributes:
+        value_obj = AttributeValue.objects.filter(attribute=attr).first()
+        values[attr.name] = value_obj.value if value_obj else ''
+
     return render(request, 'diary/diary_list.html', {
-        'entries': entries,
-        'board': board,
-        'statuses': statuses,
+        'attributes': user_attributes,
+        'values': values,
     })
 
 @require_GET
@@ -169,8 +172,8 @@ def reorder_entries(request):
         try:
             data = json.loads(request.body)
             ids = data.get('order', [])
-            for idx, eid in enumerate(ids):
-                DiaryEntry.objects.filter(id=eid).update(order=idx)
+            for idx, row_id in enumerate(ids):
+                Row.objects.filter(id=row_id).update(order=idx)
             return JsonResponse({'success': True})
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)})
@@ -226,74 +229,37 @@ def board_view(request):
 @csrf_exempt
 def update_entry(request):
     if request.method == 'POST':
-        entry_id = request.POST.get('id')
         field = request.POST.get('field')
         value = request.POST.get('value')
-        if not entry_id or not field:
-            return JsonResponse({'success': False, 'error': 'Missing id or field'})
+        print(field, value)
+        if not field:
+            return JsonResponse({'success': False, 'error': 'Missing field'})
+        user = User.objects.get(id=1)
         try:
-            entry = DiaryEntry.objects.get(id=entry_id)
-        except DiaryEntry.DoesNotExist:
-            return JsonResponse({'success': False, 'error': 'Entry not found'})
-        # ForeignKey fields
-        if field == 'category':
-            if value and value.isdigit():
-                entry.category = Category.objects.filter(id=value).first()
-            elif value:
-                entry.category, _ = Category.objects.get_or_create(name=value)
-            else:
-                entry.category = None
-        elif field == 'region':
-            if value and value.isdigit():
-                entry.region = Region.objects.filter(id=value).first()
-            elif value:
-                entry.region, _ = Region.objects.get_or_create(name=value)
-            else:
-                entry.region = None
-        elif field == 'status':
-            if value and value.isdigit():
-                entry.status = SalesStatus.objects.filter(id=value).first()
-            elif value:
-                entry.status, _ = SalesStatus.objects.get_or_create(name=value)
-            else:
-                entry.status = None
-        # Date fields
-        elif field in ['ta_date', 'meeting_date', 'fu_date']:
-            entry.__setattr__(field, value if value else None)
-        # Other fields
+            attr = Attribute.objects.get(name=field)
+        except Attribute.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Invalid attribute'})
+        attr_type = attr.attributeType.name if attr.attributeType else ''
+        attribute, _ = Attribute.objects.get_or_create(
+            name=attr.name,
+            user=user,
+            defaults={'attributeType': attr.attributeType}
+        )
+        # Dropdown 처리
+        if attr_type == 'dropdown':
+            dropdown, _ = DropdownAttribute.objects.get_or_create(
+                attribute=attr,
+                option=value
+            )
+            value_to_save = str(dropdown.id)
         else:
-            setattr(entry, field, value)
-        entry.save()
+            value_to_save = value
+        attr_value, created = AttributeValue.objects.get_or_create(
+            attribute=attribute,
+            defaults={'value': value_to_save}
+        )
+        if not created:
+            attr_value.value = value_to_save
+            attr_value.save()
         return JsonResponse({'success': True})
-    elif request.method == 'GET':
-        entry_id = request.GET.get('id')
-        if not entry_id:
-            return JsonResponse({'success': False, 'error': 'Missing id'})
-        try:
-            entry = DiaryEntry.objects.get(id=entry_id)
-        except DiaryEntry.DoesNotExist:
-            return JsonResponse({'success': False, 'error': 'Entry not found'})
-        # Return all fields as dict, ForeignKey fields as id/name
-        data = {}
-        for f in entry._meta.fields:
-            value = getattr(entry, f.name)
-            if hasattr(value, 'strftime'):  # datetime 객체
-                data[f.name] = value.strftime('%Y-%m-%d') if value else None
-            elif hasattr(value, 'id'):  # ForeignKey 객체
-                data[f.name] = value.id if value else None
-            else:
-                data[f.name] = value
-        # ForeignKey fields 추가 정보
-        if entry.category:
-            data['category_name'] = entry.category.name
-            data['category_id'] = entry.category.id
-            data['category_color'] = entry.category.color if hasattr(entry.category, 'color') else None
-        if entry.region:
-            data['region_name'] = entry.region.name
-            data['region_id'] = entry.region.id
-        if entry.status:
-            data['status_name'] = entry.status.name
-            data['status_id'] = entry.status.id
-            data['status_color'] = entry.status.color if hasattr(entry.status, 'color') else None
-        return JsonResponse({'success': True, 'entry': data})
     return JsonResponse({'success': False, 'error': 'Invalid request'})

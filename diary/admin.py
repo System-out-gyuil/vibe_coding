@@ -1,4 +1,4 @@
-from .models import DiaryEntry, Category, Region, SalesStatus
+from .models import DiaryEntry, Category, Region, SalesStatus, AttributeType, BaseAttribute, Attribute, AttributeValue, DropdownAttribute, User, Row
 from django.contrib import admin
 
 @admin.register(DiaryEntry)
@@ -13,3 +13,12 @@ class DiaryEntryAdmin(admin.ModelAdmin):
 
 admin.site.register(Category)
 admin.site.register(Region)
+
+# Register additional models
+admin.site.register(AttributeType)
+admin.site.register(BaseAttribute)
+admin.site.register(Attribute)
+admin.site.register(AttributeValue)
+admin.site.register(DropdownAttribute)
+admin.site.register(User)
+admin.site.register(Row)
