@@ -30,9 +30,11 @@ def fu_events(request):
     for entry in DiaryEntry.objects.exclude(fu_date=None):
         events.append({
             'id': entry.id,
-            'title': entry.name + ' F/U',
-            'start': entry.fu_date.strftime('%Y-%m-%d'),
-            'allDay': True,
+            'title': entry.name,
+            'start': entry.fu_date.strftime('%Y-%m-%d') if entry.fu_date else None,
+            'meeting_date': entry.meeting_date.strftime('%Y/%m/%d') if entry.meeting_date else '',
+            'status_name': entry.status.name if entry.status else '',
+            'status_color': entry.status.color if entry.status and hasattr(entry.status, 'color') else '#bbb',
         })
     return JsonResponse(events, safe=False, encoder=DjangoJSONEncoder)
 
